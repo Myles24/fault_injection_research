@@ -1,2 +1,2 @@
 # fault_injection_research
-Fault injection on semantic segmentation models
+Research on fault injection on semantic segmentation models
