@@ -1,0 +1,3 @@
+xilinx-kv260-starterkit-20221:/home/petalinux/models-runtime/enet# ./enet enet_modified.xmodel jena_000000_000019.png 90400 90401 10 100 0 100 1
+
+lab_CY_1234
