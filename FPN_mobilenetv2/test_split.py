@@ -247,72 +247,52 @@ def visulization(args, model, model_last, device):
    
     
     with torch.no_grad():
-        img_nums = [0]
-        for j in img_nums:
-            args.test_folder = f"./data/demo/img{j}"
-            image_list = glob.glob(os.path.join(args.test_folder, "*"))
-            header = 'Demo'
-            for i, imgName in tqdm(enumerate(image_list)):
-                img = Image.open(imgName).convert('RGB')
-                w, h = img.size
-                tw, th = int(w*args.scale), int(h*args.scale) 
-                scale_image = data_transform(img,(tw, th) , MEAN, STD)
-                scale_image = scale_image.unsqueeze(0).to(device)
-                residual, c1, c2 = model(scale_image)
-                # quantizer2 = torch_quantizer(args.quant_mode, model_last, (c1, c2), output_dir=args.quant_dir,device=device)
-                # quant_model2 = quantizer2.quant_model
-                path = "data/split_bn1/fpn_mob_raw_out_0_103097_103098_400_1.csv"
+        image_list = glob.glob(os.path.join(args.test_folder, "*"))
+        header = 'Demo'
+        for i, imgName in tqdm(enumerate(image_list)):
+            img = Image.open(imgName).convert('RGB')
+            w, h = img.size
+            tw, th = int(w*args.scale), int(h*args.scale) 
+            scale_image = data_transform(img,(tw, th) , MEAN, STD)
+            scale_image = scale_image.unsqueeze(0).to(device)
+            residual, c1, c2 = model(scale_image)
+            # quantizer2 = torch_quantizer(args.quant_mode, model_last, (c1, c2), output_dir=args.quant_dir,device=device)
+            # quant_model2 = quantizer2.quant_model
+            path = "data/split_bn1/fpn_mob_raw_out_0_103097_103098_400_1.csv"
+            
+            output = model_last(residual, c1, get_corrected_data(path))
+            if isinstance(output, (tuple, list)):
+                output = output[0]
+            output = F.interpolate(output, size=(1024, 2048), mode='bilinear', align_corners=True)
+            output = output.cpu().data[0].numpy().transpose(1,2,0)
+            seg_pred = np.asarray(np.argmax(output, axis=2), dtype=np.uint8)
+            name = imgName.split('/')[-1]
+            img_extn = imgName.split('.')[-1]
+            color_mask = colorize_mask(seg_pred)
+            color_mask.save(os.path.join(args.save_dir, path[15:]+'_CORRECTED_color.png'))
 
-                
-                csv_files = glob.glob(os.path.join(f"data/split_bn1/img{j}", "*.csv"))
-                args.save_dir = f"./data/split_bn1/img{j}"
-                ground_truth = np.loadtxt("mask_512u.csv", delimiter=',')[j].astype(np.uint8)
-                for path in csv_files:
-                    print(f"processing {path}")
-                    output = model_last(residual, c1, get_corrected_data(path))
-                    if isinstance(output, (tuple, list)):
-                        output = output[0]
-                    #output = F.interpolate(output, size=(1024, 2048), mode='bilinear', align_corners=True)
-                    output = output.cpu().data[0].numpy().transpose(1,2,0)
-                    seg_pred = np.asarray(np.argmax(output, axis=2), dtype=np.uint8)
-                    name = imgName.split('/')[-1]
-                    img_extn = imgName.split('.')[-1]
-                    color_mask = colorize_mask(seg_pred)
-                    #color_mask.save(os.path.join(args.save_dir, path[21:]+'_CORRECTED_color.png'))
+            output = model_last(residual, c1, get_faulty_data(path))
+            if isinstance(output, (tuple, list)):
+                output = output[0]
+            output = F.interpolate(output, size=(1024, 2048), mode='bilinear', align_corners=True)
+            output = output.cpu().data[0].numpy().transpose(1,2,0)
+            seg_pred = np.asarray(np.argmax(output, axis=2), dtype=np.uint8)
+            name = imgName.split('/')[-1]
+            img_extn = imgName.split('.')[-1]
+            color_mask = colorize_mask(seg_pred)
+            color_mask.save(os.path.join(args.save_dir, path[15:]+'_FAULTY_color.png'))
 
-                    ious = compute_iou(seg_pred, ground_truth)  # <<
-                    for cls, iou in ious.items():               # <<
-                        ious_corrected[cls].append(iou)         # <<
+            output = model_last(residual, c1, get_free_data(path))
+            if isinstance(output, (tuple, list)):
+                output = output[0]
+            output = F.interpolate(output, size=(1024, 2048), mode='bilinear', align_corners=True)
+            output = output.cpu().data[0].numpy().transpose(1,2,0)
+            seg_pred = np.asarray(np.argmax(output, axis=2), dtype=np.uint8)
+            name = imgName.split('/')[-1]
+            img_extn = imgName.split('.')[-1]
+            color_mask = colorize_mask(seg_pred)
+            color_mask.save(os.path.join(args.save_dir, path[15:]+'_FREE_color.png'))
 
-                    output = model_last(residual, c1, get_faulty_data(path))
-                    if isinstance(output, (tuple, list)):
-                        output = output[0]
-                    #output = F.interpolate(output, size=(1024, 2048), mode='bilinear', align_corners=True)
-                    output = output.cpu().data[0].numpy().transpose(1,2,0)
-                    seg_pred = np.asarray(np.argmax(output, axis=2), dtype=np.uint8)
-                    name = imgName.split('/')[-1]
-                    img_extn = imgName.split('.')[-1]
-                    color_mask = colorize_mask(seg_pred)
-                    #color_mask.save(os.path.join(args.save_dir, path[21:]+'_FAULTY_color.png'))
-
-                    ious = compute_iou(seg_pred, ground_truth)  # <<
-                    for cls, iou in ious.items():               # <<
-                        ious_faulty[cls].append(iou)            # <<
-
-                    output = model_last(residual, c1, get_free_data(path))
-                    if isinstance(output, (tuple, list)):
-                        output = output[0]
-                    #output = F.interpolate(output, size=(1024, 2048), mode='bilinear', align_corners=True)
-                    output = output.cpu().data[0].numpy().transpose(1,2,0)
-                    seg_pred = np.asarray(np.argmax(output, axis=2), dtype=np.uint8)
-                    name = imgName.split('/')[-1]
-                    img_extn = imgName.split('.')[-1]
-                    color_mask = colorize_mask(seg_pred)
-                    #color_mask.save(os.path.join(args.save_dir, path[21:]+'_FREE_color.png'))
-
-                    ious = compute_iou(seg_pred, ground_truth)  # <<
-                    for cls, iou in ious.items():               # <<
-                        ious_free[cls].append(iou)              # <<
             
 
                 
