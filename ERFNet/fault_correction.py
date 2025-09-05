@@ -1,5 +1,6 @@
 from collections import Counter
 import numpy as np
+from scipy.ndimage import median_filter
 
 
 # other shape is (64, 128, 128)
